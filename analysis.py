@@ -41,17 +41,21 @@ def load_data() -> pd.DataFrame:
 
 def figure_monthly_burned_area(df: pd.DataFrame) -> None:
     monthly = df.groupby("month", observed=True)["area"].agg(["sum", "count"])
-    fig, ax1 = plt.subplots(figsize=(9, 5))
-    ax1.bar(monthly.index.astype(str), monthly["sum"], color="#d95f02", alpha=0.85)
-    ax1.set_ylabel("Total burned area (ha)")
-    ax1.set_xlabel("Month")
-    ax2 = ax1.twinx()
-    ax2.plot(monthly.index.astype(str), monthly["count"], color="#1b9e77",
-             marker="o", linewidth=2, label="Number of fires")
-    ax2.set_ylabel("Number of fires")
-    ax1.set_title("Burned area and fire count peak in late summer (Aug-Sep)")
+    months = monthly.index.astype(str)
+    fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+    axes[0].bar(months, monthly["sum"], color="#d95f02", alpha=0.85)
+    axes[0].set_ylabel("Total burned area (ha)")
+    axes[0].set_title("Total burned area by month")
+    axes[1].bar(months, monthly["count"], color="#1b9e77", alpha=0.85)
+    axes[1].set_ylabel("Number of fires")
+    axes[1].set_xlabel("Month")
+    axes[1].set_title("Number of fires by month")
+    fig.suptitle(
+        "Burned area and fire count both peak in late summer (Aug-Sep)",
+        fontsize=12,
+    )
     fig.tight_layout()
-    fig.savefig(FIG_DIR / "monthly_burned_area.png", dpi=150)
+    fig.savefig(FIG_DIR / "monthly_burned_area.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 

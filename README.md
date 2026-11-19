@@ -67,7 +67,9 @@ data-science-project/
 August and September account for 5,384 ha of the 6,642 ha total burned area
 (81.1%). These months also had the highest fire counts in the sample.
 
-![Monthly burned area](figures/monthly_burned_area.png)
+![Monthly burned area and fire count on separate panels](figures/monthly_burned_area.png)
+
+Burned area and fire count are drawn on separate panels that share the month axis, so the two quantities are not compared on one scale.
 
 ### 2. The target is zero-inflated and extremely skewed
 
