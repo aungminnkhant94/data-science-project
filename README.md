@@ -49,7 +49,7 @@ components (FFMC, DMC, DC, ISI) predict the burned area?
 data-science-project/
 |-- analysis.py              # full pipeline: EDA figures + model benchmark
 |-- forestfires.csv          # dataset (UCI, CC BY 4.0)
-|-- requirements.txt         # pinned dependencies
+|-- requirements.txt         # Python dependencies
 |-- figures/                 # all generated visualizations
 |   |-- monthly_burned_area.png
 |   |-- area_distribution.png
@@ -64,32 +64,33 @@ data-science-project/
 
 ### 1. Fire damage is concentrated in late summer
 
-August and September account for ~5,384 ha of the ~6,639 ha total burned area -
-over 80% of all damage in two months, matching the peak in fire counts.
+August and September account for 5,384 ha of the 6,642 ha total burned area
+(81.1%). These months also had the highest fire counts in the sample.
 
 ![Monthly burned area](figures/monthly_burned_area.png)
 
 ### 2. The target is zero-inflated and extremely skewed
 
-Nearly half of all fires (47.8%) burn less than 1 ha, while the largest single
-fire burned 1,090.8 ha. Mean = 12.8 ha vs. median = 0.5 ha. Even after a
+Burned area was recorded as 0 ha for 47.8% of fires and below 1 ha for 53.0%.
+The largest recorded fire burned 1,090.8 ha. The mean is 12.8 ha and the
+median is 0.5 ha. Even after a
 `log1p` transform the distribution stays right-skewed - a warning sign for any
 regression model.
 
 ![Area distribution](figures/area_distribution.png)
 
-### 3. Large fires cluster under hot, dry conditions
+### 3. Low humidity was common among the largest fires
 
-Fires burning more than ~100 ha occur almost exclusively above 20 deg C with
-relative humidity below 45%.
+Of the 11 fires that burned more than 100 ha, nine occurred below 45% relative
+humidity and five occurred both below 45% humidity and above 20 °C. The plot
+shows records with positive burned area because the vertical axis is logarithmic.
 
 ![Temperature vs area](figures/temp_vs_area.png)
 
 ### 4. But no single variable explains fire size
 
-All pairwise correlations between FWI indices / weather and `log(area)` are
-weak (|r| < 0.1). Temperature correlates with the drought codes (as expected
-physically), but not with the outcome itself.
+Pearson correlations between each weather or FWI variable and `log1p(area)`
+are weak (|r| < 0.1). This measures linear association in the sample.
 
 ![Correlation heatmap](figures/correlation_heatmap.png)
 
@@ -101,34 +102,32 @@ held-out 20% test split (`random_state=42`):
 
 | Model | MAE (log-ha) | R2 |
 |---|---|---|
-| Baseline (predict train median) | 1.133 | 0.000 |
+| Baseline (predict train median) | 1.133 | -0.229 |
 | Random Forest | 1.193 | -0.011 |
 
 ![Feature importance](figures/feature_importance.png)
 
 ![Predicted vs actual](figures/predicted_vs_actual.png)
 
-**The honest result: the Random Forest cannot beat the median baseline.**
-Feature importances confirm the EDA story - temperature, humidity and the
-drought codes (DMC, DC) carry the most signal - but that signal is not enough
-to predict how much a given fire will burn. Burned area appears to be driven
-largely by factors *outside* this dataset: ignition cause, firefighting
-response time, terrain, and fuel load. This mirrors the original paper, which
-also found burned area very hard to predict (Cortez & Morais, 2007).
+The Random Forest had higher mean absolute error than the median baseline on
+the log scale. Its R² improved over that baseline and remained slightly below
+zero. This split provides limited evidence of predictive value from the eight
+inputs. Terrain, fuel load, and firefighting response time are examples of
+variables that could be tested with additional data.
 
 ## Limitations
 
 - **Weak predictive signal:** weather and FWI features alone are insufficient;
   the best model achieves R2 ~= 0 on held-out data.
-- **Zero inflation:** 47.8% of records have `area = 0`, breaking the assumptions
-  of plain regression; a hurdle/two-part model would be more appropriate.
+- **Many zeros:** 47.8% of records have `area = 0`. A two-part model could
+  estimate the chance of positive burned area and then estimate its size.
 - **Small, old, single-park dataset:** 517 records from one park (2000-2003)
   limit generalization to other regions or today's climate.
 
 ## Future Work
 
-- Reformulate as a **two-part (hurdle) model**: first classify "will the fire
-  burn > 1 ha?", then regress size only on positive cases.
+- Compare a two-part model with the baselines using repeated splits. First
+  predict whether the recorded burned area is positive, then estimate its size.
 - Try gradient boosting (XGBoost/LightGBM) with spatial features (`X`, `Y`
   grid coordinates) and month as a categorical feature.
 - Add external data sources (firefighting response times, land cover) to test
@@ -139,12 +138,12 @@ also found burned area very hard to predict (Cortez & Morais, 2007).
 ```bash
 git clone https://github.com/aungminnkhant94/data-science-project.git
 cd data-science-project
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python analysis.py
 ```
 
-The script prints summary statistics and model metrics, and regenerates all
-six figures in `figures/`. Total runtime: under 15 seconds.
+The script uses the UCI dataset included as `forestfires.csv`, prints summary
+statistics and model metrics, and regenerates all six figures in `figures/`.
 
 ## References
 

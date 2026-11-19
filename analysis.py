@@ -61,7 +61,7 @@ def figure_area_distribution(df: pd.DataFrame) -> None:
     axes[0].hist(df["area"], bins=60, color="#7570b3", edgecolor="white")
     axes[0].set_xlabel("Burned area (ha)")
     axes[0].set_ylabel("Number of fires")
-    axes[0].set_title(f"Raw area: {zero_share:.0%} of fires burn < 1 ha")
+    axes[0].set_title(f"Raw area: {zero_share:.1%} of records are 0 ha")
     axes[1].hist(df["log_area"], bins=40, color="#1b9e77", edgecolor="white")
     axes[1].set_xlabel("log(1 + burned area)")
     axes[1].set_ylabel("Number of fires")
@@ -74,13 +74,15 @@ def figure_area_distribution(df: pd.DataFrame) -> None:
 
 
 def figure_temp_vs_area(df: pd.DataFrame) -> None:
+    positive_area = df[df["area"] > 0]
     fig, ax = plt.subplots(figsize=(8, 5.5))
-    sc = ax.scatter(df["temp"], df["area"], c=df["RH"], cmap="coolwarm_r",
+    sc = ax.scatter(positive_area["temp"], positive_area["area"],
+                    c=positive_area["RH"], cmap="coolwarm_r",
                     alpha=0.65, edgecolors="none", s=28)
     ax.set_yscale("log")
     ax.set_xlabel("Temperature (deg C)")
     ax.set_ylabel("Burned area (ha, log scale)")
-    ax.set_title("Larger fires cluster at high temperature and low humidity")
+    ax.set_title("Temperature and burned area for records above 0 ha")
     cbar = fig.colorbar(sc, ax=ax)
     cbar.set_label("Relative humidity (%)")
     fig.tight_layout()
@@ -99,7 +101,7 @@ def figure_correlation_heatmap(df: pd.DataFrame) -> None:
         for j in range(len(cols)):
             ax.text(j, i, f"{corr.iloc[i, j]:.2f}", ha="center", va="center",
                     fontsize=8, color="black")
-    ax.set_title("Correlation of FWI indices and weather with log(area)")
+    ax.set_title("Correlation of FWI indices and weather with log(1 + area)")
     fig.colorbar(im, ax=ax, shrink=0.8)
     fig.tight_layout()
     fig.savefig(FIG_DIR / "correlation_heatmap.png", dpi=150)
@@ -117,7 +119,6 @@ def train_model(df: pd.DataFrame):
         X, y, test_size=0.2, random_state=42)
 
     baseline_pred = np.full_like(y_test, y_train.median(), dtype=float)
-    baseline_mae = mean_absolute_error(y_test, baseline_pred)
 
     model = RandomForestRegressor(n_estimators=400, min_samples_leaf=3,
                                   random_state=42, n_jobs=-1)
@@ -125,7 +126,8 @@ def train_model(df: pd.DataFrame):
     pred = model.predict(X_test)
 
     metrics = {
-        "baseline_mae": baseline_mae,
+        "baseline_mae": mean_absolute_error(y_test, baseline_pred),
+        "baseline_r2": r2_score(y_test, baseline_pred),
         "rf_mae": mean_absolute_error(y_test, pred),
         "rf_r2": r2_score(y_test, pred),
         "n_train": len(X_train),
@@ -140,7 +142,7 @@ def figure_feature_importance(model) -> None:
     colors = ["#d95f02" if c in FWI_COLS else "#1b9e77" for c in imp.index]
     ax.barh(imp.index, imp.values, color=colors, alpha=0.85)
     ax.set_xlabel("Mean decrease in impurity (feature importance)")
-    ax.set_title("Random Forest: temperature and drought codes matter most")
+    ax.set_title("Feature importance in the Random Forest benchmark")
     from matplotlib.patches import Patch
     ax.legend(handles=[Patch(color="#d95f02", label="FWI index"),
                        Patch(color="#1b9e77", label="Weather")],
@@ -172,7 +174,8 @@ def main() -> None:
     print(f"Records: {len(df)}")
     print(f"Burned-area stats (ha): mean={df['area'].mean():.1f}, "
           f"median={df['area'].median():.1f}, max={df['area'].max():.1f}")
-    print(f"Fires burning < 1 ha: {(df['area'] == 0).mean():.1%} of records")
+    print(f"Recorded at 0 ha: {(df['area'] == 0).mean():.1%} of records")
+    print(f"Recorded below 1 ha: {(df['area'] < 1).mean():.1%} of records")
     top_months = df.groupby("month", observed=True)["area"].sum().nlargest(3)
     print("Top months by burned area:")
     print(top_months.to_string())
@@ -186,6 +189,7 @@ def main() -> None:
     print("\nModel benchmark (RandomForestRegressor, target = log1p(area)):")
     print(f"  train/test split: {metrics['n_train']}/{metrics['n_test']}")
     print(f"  baseline MAE (predict train median): {metrics['baseline_mae']:.3f}")
+    print(f"  baseline R^2:                        {metrics['baseline_r2']:.3f}")
     print(f"  Random Forest MAE:                   {metrics['rf_mae']:.3f}")
     print(f"  Random Forest R^2:                   {metrics['rf_r2']:.3f}")
     figure_feature_importance(model)
